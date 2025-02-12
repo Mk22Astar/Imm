@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>сите</title>
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <div class="main-content">
+            <div class="input-container">
+                <!-- First input group -->
+                <div class="input-group">
+                    <form method="post">
+                        <div class="textarea-wrapper">
+                            <textarea name="text1" rows="5" cols="30" placeholder="Введите текст здесь..." required>{{ text1 }}</textarea>
+                        </div>
+                        <div class="button-container">
+                            <button type="submit" name="button1" class="big-button">Создать тест</button>
+                        </div>
+                    </form>
+                </div>
+                <!-- Second input group -->
+                <div class="input-group">
+                    <div class="textarea-wrapper">
+                        <textarea name="text2" rows="5" cols="30" readonly placeholder="//Здесь будет ваш тест">{{ text2 }}</textarea>
+                    </div>
+                    <div class="copy-button-group">
+                        <button type="submit" name="button2" class="big-button">Копировать</button>
+                        <div class="text-under-copy"><p>Сохранить как:</p></div>
+                        <div class="additional-buttons">
+                            <button type="submit" name="button3" class="small-button">PDF</button>
+                            <button type="submit" name="button4" class="small-button">Word</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
