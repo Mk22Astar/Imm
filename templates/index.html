@@ -9,7 +9,6 @@
     <div class="container">
         <div class="main-content">
             <div class="input-container">
-                <!-- First input group -->
                 <div class="input-group">
                     <form method="post">
                         <div class="textarea-wrapper">
@@ -20,22 +19,51 @@
                         </div>
                     </form>
                 </div>
-                <!-- Second input group -->
                 <div class="input-group">
                     <div class="textarea-wrapper">
-                        <textarea name="text2" rows="5" cols="30" readonly placeholder="//Здесь будет ваш тест">{{ text2 }}</textarea>
+                        <textarea name="text2" id="text2" rows="5" cols="30" readonly placeholder="//Здесь будет ваш тест">{{ text2 }}</textarea>
                     </div>
                     <div class="copy-button-group">
-                        <button type="submit" name="button2" class="big-button">Копировать</button>
+                        <button type="button" class="big-button" onclick="copyText()">Копировать</button>
                         <div class="text-under-copy"><p>Сохранить как:</p></div>
                         <div class="additional-buttons">
-                            <button type="submit" name="button3" class="small-button">PDF</button>
-                            <button type="submit" name="button4" class="small-button">Word</button>
+                            <form method="post">
+                                <button type="submit" name="button3" class="small-button">PDF</button>
+                            </form>
+                            <form method="post">
+                                <button type="submit" name="button4" class="small-button">Word</button>
+                            </form>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
+
+    <script>
+        function copyText() {
+            var textToCopy = document.getElementById("text2");
+
+            if (!textToCopy) {
+                console.error("Элемент textarea с id='text2' не найден.");
+                alert("Ошибка: Не найден элемент для копирования.");
+                return;
+            }
+
+            textToCopy.select(); // Выделяем текст
+
+            try {
+                var successful = document.execCommand('copy');
+                var msg = successful ? 'успешно' : 'не удалось';
+                console.log('Копирование текста ' + msg);
+                alert("Текст скопирован!");
+            } catch (err) {
+                console.log('Не удалось скопировать текст: ', err);
+                alert("Не удалось скопировать текст в буфер обмена. Попробуйте другой браузер.");
+            }
+
+            window.getSelection().removeAllRanges() // Снимаем выделение после копирования
+        }
+    </script>
 </body>
 </html>

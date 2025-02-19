@@ -1,10 +1,18 @@
 import logging
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, send_file, session
 import torch
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
 from torch.utils.data import Dataset, DataLoader
 import os
 from markupsafe import escape
 from tqdm import tqdm
+import pdfkit
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
+import io
+from markupsafe import escape
+from docx import Document
 
 # Настройка логгирования
 logging.basicConfig(
@@ -17,15 +25,51 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+try:
+    pdfmetrics.registerFont(TTFont('ofont.ru_Arial', 'ofont.ru_Arial.ttf'))
+except Exception as e:
+    print(f"Ошибка при регистрации шрифта Arial: {e}")
+    print("TimeNew не найден. Убедитесь, что файл шрифта (ofont.ru_Arial.ttf) доступен.")
+
 # Глобальные параметры
 EMBEDDING_DIM = 256
 HIDDEN_DIM = 512
 NUM_LAYERS = 2
-SEQ_LENGTH = 10  # Длина входной последовательности
+SEQ_LENGTH = 200  # Длина входной последовательности
 BATCH_SIZE = 32
 MODEL_PATH = "lstm_language_model.pth"
 
 app = Flask(__name__)
+app.secret_key = 'secrets.token_hex(16)'
+
+
+def create_pdf(text, filename="output.pdf"):
+    buffer = io.BytesIO()
+    c = canvas.Canvas(buffer, pagesize=letter)
+
+    # Зарегистрируйте шрифт Arial (или другой поддерживающий кириллицу)
+    try:
+        pdfmetrics.registerFont(TTFont('Arial', 'arial.ttf'))  # Путь к файлу шрифта
+    except Exception as e:
+        print(f"Ошибка при регистрации шрифта Arial: {e}")
+        print("Arial не найден. Убедитесь, что файл шрифта (arial.ttf) доступен.")
+
+    c.setFont('Arial', 12)  # Установите шрифт Arial
+    lines = text.splitlines()
+    y = 750  # Начальная координата y
+    for line in lines:
+        c.drawString(100, y, line)
+        y -= 15  # Уменьшаем y для каждой следующей строки (15 - примерный интервал)
+
+    c.showPage()
+    c.save()
+    buffer.seek(0)
+    return buffer
+
+def create_word_document(text, filename="output.docx"):
+    document = Document()
+    document.add_paragraph(text)
+    document.save(filename)
 
 # Загрузка модели
 class LSTMModel(torch.nn.Module):
@@ -70,7 +114,7 @@ def load_or_train_model(file_path="your_dataset.txt"):
     criterion = torch.nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
-    train_model(model, dataloader, optimizer, criterion, epochs=3, device=device)
+    train_model(model, dataloader, optimizer, criterion, epochs=10, device=device)
 
     torch.save({
         'model_state_dict': model.state_dict(),
@@ -173,28 +217,66 @@ def index():
     Главный маршрут для обработки GET и POST запросов.
     Обрабатывает действия кнопок и отображает результаты.
     """
-    text1 = ""
-    text2 = ""
+    text1 = session.get('text1', "")
+    text2 = session.get('text2', "")
     client_ip = request.remote_addr
     user_agent = request.headers.get('User-Agent')
     logger.info(f"Получен запрос от IP: {client_ip}, User-Agent: {user_agent}")
 
     if request.method == 'POST':
-        try:
-            text1 = escape(request.form.get('text1', "").strip())  # Очистка и валидация входных данных
-            if not text1:
-                text2 = "Введите текст!"
-                logger.warning("Обнаружен пустой ввод.")
-                return render_template('index.html', text1=text1, text2=text2)
+        if 'button1' in request.form:
+            try:
+                text1 = escape(request.form.get('text1', "").strip())  # Очистка и валидация входных данных
+                if not text1:
+                    text2 = "Введите текст!"
+                    logger.warning("Обнаружен пустой ввод.")
+                    return render_template('index.html', text1=text1, text2=text2)
 
-            # Генерация текста с использованием модели
-            seed_text = text1
-            generated_text = generate_text_with_model(seed_text)
-            text2 = generated_text
+                # Генерация текста с использованием модели
+                seed_text = text1
+                generated_text = generate_text_with_model(seed_text)
+                text2 = generated_text
+                session['text1'] = text1  # Сохраняем text1 в сессии
+                session['text2'] = text2  # Сохраняем text2 в сессии
 
-        except Exception as e:
-            logger.error(f"Непредвиденная ошибка в маршруте index: {e}")
-            text2 = "Произошла непредвиденная ошибка. Пожалуйста, попробуйте снова."
+            except Exception as e:
+                logger.error(f"Непредвиденная ошибка в маршруте index: {e}")
+                text2 = "Произошла непредвиденная ошибка. Пожалуйста, попробуйте снова."
+        elif 'button3' in request.form:
+            logger.info("Кнопка PDF нажата")
+            text2 = session.get('text2', "")  # Получаем text2 из сессии
+            text1 = session.get('text1', "")  # Получаем text1 из сессии
+            if not text2:
+                return render_template('index.html', text1=text1, text2="Сначала сгенерируйте текст!",
+                                       error="Сначала сгенерируйте текст!")
+
+            # Создайте PDF с помощью create_pdf
+            pdf_buffer = create_pdf(escape(text2))
+
+            return send_file(
+                pdf_buffer,
+                as_attachment=True,
+                download_name='generated_text.pdf',
+                mimetype='application/pdf'
+            )
+        elif 'button4' in request.form:  # Обработка кнопки Word
+            logger.info("Кнопка Word нажата")
+            text2 = session.get('text2', "")  # Получаем из сессии
+            text1 = session.get('text1', "")  # Получаем text1 из сессии
+            if not text2:
+                return render_template('index.html', text1=text1, text2="Сначала сгенерийте текст!",
+                                       error="Сначала сгенерийте текст!")
+
+            # Создаем Word-документ
+            create_word_document(text2, "generated_text.docx")
+
+            # Отправляем файл пользователю
+            return send_file(
+                "generated_text.docx",
+                as_attachment=True,
+                download_name='generated_text.docx',
+                mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            )
 
     return render_template('index.html', text1=text1, text2=text2)
 
